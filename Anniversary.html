@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>📈 Stock Anniversary Tracker</title>
+  <style>
+    body { font-family: "Segoe UI", sans-serif; margin: 0; padding: 0; background: #f5f7fa; color: #222; }
+    header { background: #1e88e5; color: white; padding: 20px; text-align: center; }
+    h1 { margin: 0; font-size: 28px; }
+    .container { max-width: 1000px; margin: 20px auto; padding: 0 20px; }
+    .section { background: white; padding: 20px; margin: 20px 0; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    h2 { margin-top: 0; color: #1e88e5; }
+    .stock { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 10px; padding: 10px; border-bottom: 1px solid #eee; align-items: center; }
+    .stock.highlight { background: #e3f2fd; font-weight: bold; }
+    .search-bar { display: flex; margin-bottom: 15px; }
+    .search-bar input { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 8px 0 0 8px; font-size: 16px; }
+    .search-bar button { background: #1e88e5; color: white; border: none; padding: 10px 20px; border-radius: 0 8px 8px 0; cursor: pointer; }
+    .search-bar button:hover { background: #1565c0; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>📈 Stock Anniversary Tracker</h1>
+  </header>
+  <div class="container">
+
+    <div class="section" id="today">
+      <h2>🎉 Stocks Listed Today</h2>
+      <div id="today-list">Loading...</div>
+    </div>
+
+    <div class="section" id="month">
+      <h2>📅 Stocks Listed This Month</h2>
+      <div id="month-list">Loading...</div>
+    </div>
+
+    <div class="section">
+      <h2>🔎 Search Stock</h2>
+      <div class="search-bar">
+        <input type="text" id="searchInput" placeholder="e.g. RELIANCE.NS, TCS.NS, HDFCBANK.NS">
+        <button onclick="searchStock()">Search</button>
+      </div>
+      <div id="search-result">Enter a stock symbol above...</div>
+    </div>
+
+  </div>
+
+  <script>
+    // Sample IPO listing data (since NSE API blocks browsers)
+    const ipoData = [
+      { symbol: "IRCTC.NS", name: "Indian Railway Catering & Tourism Corp", listingDate: "2019-09-14" },
+      { symbol: "HDFCAMC.NS", name: "HDFC Asset Management Company", listingDate: "2018-09-05" },
+      { symbol: "ADANIGREEN.NS", name: "Adani Green Energy Ltd", listingDate: "2018-06-18" },
+      { symbol: "NYKAA.NS", name: "FSN E-Commerce Ventures (Nykaa)", listingDate: "2021-11-10" }
+    ];
+
+    async function fetchYahoo(symbol) {
+      try {
+        const res = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=1y&interval=1d`);
+        const data = await res.json();
+        if (!data.chart || data.chart.error) throw new Error("Invalid symbol");
+        
+        const meta = data.chart.result[0].meta;
+        const prices = data.chart.result[0].indicators.adjclose[0].adjclose;
+        const lastPrice = prices[prices.length-1];
+        const yearAgoPrice = prices[0];
+        const change = (((lastPrice - yearAgoPrice) / yearAgoPrice) * 100).toFixed(2);
+
+        return {
+          name: meta.longName || symbol,
+          symbol: meta.symbol,
+          price: lastPrice.toFixed(2),
+          currency: meta.currency,
+          return1y: change
+        };
+      } catch (err) {
+        return null;
+      }
+    }
+
+    async function renderIPO() {
+      const today = new Date();
+      const day = today.getDate();
+      const month = today.getMonth()+1;
+      const todayList = [];
+      const monthList = [];
+
+      for (let stock of ipoData) {
+        let d = new Date(stock.listingDate);
+        if (d.getMonth()+1 === month) {
+          monthList.push(stock);
+        }
+        if (d.getMonth()+1 === month && d.getDate() === day) {
+          todayList.push(stock);
+        }
+      }
+
+      async function renderList(list, containerId, highlight=false) {
+        const container = document.getElementById(containerId);
+        if (!list.length) {
+          container.innerHTML = "No stocks found.";
+          return;
+        }
+        container.innerHTML = "Loading...";
+        let html = "";
+        for (let s of list) {
+          const info = await fetchYahoo(s.symbol);
+          if (info) {
+            html += `<div class="stock ${highlight?'highlight':''}">
+              <div>${info.name}</div>
+              <div>${info.symbol}</div>
+              <div>${info.price} ${info.currency}</div>
+              <div>${info.return1y}% (1Y)</div>
+            </div>`;
+          }
+        }
+        container.innerHTML = html;
+      }
+
+      renderList(todayList, "today-list", true);
+      renderList(monthList, "month-list");
+    }
+
+    async function searchStock() {
+      const query = document.getElementById("searchInput").value.trim();
+      const container = document.getElementById("search-result");
+      if (!query) return;
+      container.innerHTML = "Searching...";
+      const info = await fetchYahoo(query);
+      if (info) {
+        container.innerHTML = `<div class="stock highlight">
+          <div>${info.name}</div>
+          <div>${info.symbol}</div>
+          <div>${info.price} ${info.currency}</div>
+          <div>${info.return1y}% (1Y)</div>
+        </div>`;
+      } else {
+        container.innerHTML = "Stock not found. Try RELIANCE.NS, TCS.NS, HDFCBANK.NS...";
+      }
+    }
+
+    renderIPO();
+  </script>
+</body>
+</html>
